@@ -2,86 +2,19 @@ import { ActionPanel, Action, Icon, List, showToast, Toast, Color } from "@rayca
 import { exec } from "child_process";
 import { promisify } from "util";
 import { useEffect, useState } from "react";
-import * as https from "https";
 
 const execAsync = promisify(exec);
 
 async function getLatestVersion(): Promise<string> {
-  const shells: Array<"zsh" | "bash"> = ["zsh", "bash"];
-  const commands = [
-    "npm view @anthropic-ai/claude-code version",
-    "npm view @anthropic-ai/claude-code version --silent",
-    "npm view @anthropic-ai/claude-code version --json",
-    // explicit npm paths on macOS
-    "/opt/homebrew/bin/npm view @anthropic-ai/claude-code version",
-    "/usr/local/bin/npm view @anthropic-ai/claude-code version",
-  ];
-  for (const shell of shells) {
-    for (const cmd of commands) {
-      try {
-        const { stdout } = await runInLoginShell(cmd, shell);
-        const out = stdout.trim();
-        if (!out) continue;
-        // If it's JSON, parse; otherwise return raw trimmed
-        if (out.startsWith("\"") || out.startsWith("{")) {
-          try {
-            const parsed = JSON.parse(out);
-            if (typeof parsed === "string") return parsed.trim();
-            if (parsed && typeof parsed.version === "string") return parsed.version.trim();
-          } catch {
-            // fallthrough to plain text
-          }
-        }
-        return out;
-      } catch (_) {
-        // try next
-      }
-    }
-  }
-  // Fallback to querying registry via curl
   try {
-    const { stdout } = await runInLoginShell(
-      'curl -s https://registry.npmjs.org/%40anthropic-ai%2Fclaude-code/latest'
-    );
-    const text = stdout.trim();
-    if (text) {
-      const data = JSON.parse(text);
-      const version = (data && data.version) || "";
-      if (typeof version === "string" && version) return version.trim();
-    }
-  } catch (_) {
-    // ignore
+    const { stdout, stderr } = await runInLoginShell("npm view @anthropic-ai/claude-code version", "zsh");
+    const text = `${stdout}\n${stderr}`.trim();
+    const version = extractSemver(text) || text;
+    return version;
+  } catch (error) {
+    console.error("Error getting latest version via npm:", error);
+    return "";
   }
-  // Fallback to querying registry via Node https (no external tools)
-  try {
-    const version = await new Promise<string>((resolve) => {
-      const req = https.get("https://registry.npmjs.org/%40anthropic-ai%2Fclaude-code/latest", (res) => {
-        if (!res || res.statusCode !== 200) {
-          resolve("");
-          return;
-        }
-        let data = "";
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            const v = typeof parsed?.version === "string" ? parsed.version.trim() : "";
-            resolve(v);
-          } catch {
-            resolve("");
-          }
-        });
-      });
-      req.on("error", () => resolve(""));
-      req.end();
-    });
-    if (version) return version;
-  } catch (_) {
-    // ignore
-  }
-  return "";
 }
 
 async function installUpdate() {
