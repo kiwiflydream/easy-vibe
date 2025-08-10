@@ -101,7 +101,7 @@ function compareVersions(current: string, latest: string): VersionStatus {
   return current.trim() === latest.trim() ? "up-to-date" : "outdated";
 }
 
-async function runInLoginShell(command: string, shell: "bash" | "zsh" = "bash"): Promise<{ stdout: string; stderr: string }> {
+async function runInLoginShell(command: string, shell: "zsh" | "bash" = "zsh"): Promise<{ stdout: string; stderr: string }> {
   const quoted = command.replace(/"/g, '\\"');
   const shellProgram = shell === "zsh" ? "/bin/zsh" : "/bin/bash";
   const { stdout, stderr } = await execAsync(`${shellProgram} -lc "${quoted}"`);
@@ -114,75 +114,15 @@ function extractSemver(text: string): string | null {
 }
 
 async function getInstalledVersion(): Promise<string> {
-  const shells: Array<"bash" | "zsh"> = ["zsh", "bash"];
-  const candidates = [
-    "claude -v",
-    "claude --version",
-    "claude-code -v",
-    "claude-code --version",
-    // explicit paths commonly used on macOS
-    "/opt/homebrew/bin/claude -v",
-    "/usr/local/bin/claude -v",
-  ];
-
-  for (const shell of shells) {
-    for (const cmd of candidates) {
-      try {
-        const { stdout, stderr } = await runInLoginShell(cmd, shell);
-        const text = `${stdout}\n${stderr}`.trim();
-        const version = extractSemver(text) || (text ? text : null);
-        if (version) return version;
-      } catch (error) {
-        // try next candidate
-      }
-    }
+  try {
+    const { stdout, stderr } = await runInLoginShell("claude -v", "zsh");
+    const text = `${stdout}\n${stderr}`.trim();
+    const version = extractSemver(text) || (text ? text : "");
+    return version;
+  } catch (error) {
+    console.error("Error getting installed Claude version:", error);
+    return "";
   }
-
-  // Try to locate via which/command -v and then execute
-  for (const shell of shells) {
-    try {
-      const { stdout } = await runInLoginShell('command -v claude || which claude', shell);
-      const path = stdout.trim();
-      if (path) {
-        const { stdout: vStdout, stderr: vStderr } = await runInLoginShell(`"${path}" -v`, shell);
-        const text = `${vStdout}\n${vStderr}`.trim();
-        const version = extractSemver(text) || (text ? text : null);
-        if (version) return version;
-      }
-    } catch (error) {
-      // ignore
-    }
-  }
-
-  // Fallback: query npm global list
-  for (const shell of shells) {
-    try {
-      const { stdout } = await runInLoginShell("npm ls -g @anthropic-ai/claude-code --depth=0 --json", shell);
-      const parsed = JSON.parse(stdout || "{}");
-      const version: string | undefined = parsed?.dependencies?.["@anthropic-ai/claude-code"]?.version;
-      if (version) return version;
-    } catch (error) {
-      // try next fallback
-    }
-  }
-
-  // Fallback: read package.json directly using npm prefix -g
-  for (const shell of shells) {
-    try {
-      const { stdout: prefixStdout } = await runInLoginShell("npm prefix -g", shell);
-      const prefix = prefixStdout.trim();
-      if (prefix) {
-        const cmd = `node -e "const p=process.argv[1];const path=require('path');try{const pkg=require(path.join(p,'node_modules','@anthropic-ai','claude-code','package.json'));console.log(pkg.version||'');}catch(e){process.exit(1)}" "${prefix}"`;
-        const { stdout: nodeStdout } = await runInLoginShell(cmd, shell);
-        const ver = nodeStdout.trim();
-        if (ver) return ver;
-      }
-    } catch (error) {
-      // ignore
-    }
-  }
-
-  return "";
 }
 
 export default function Command() {
