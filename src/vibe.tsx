@@ -17,11 +17,12 @@ async function getLatestVersion(): Promise<string> {
   }
 }
 
-async function installUpdate() {
+async function updateClaude() {
   try {
-    await showToast({ style: Toast.Style.Animated, title: "Updating Claude Code..." });
-    await execAsync("npm install -g @anthropic-ai/claude-code");
-    await showToast({ style: Toast.Style.Success, title: "Update completed successfully!" });
+    await showToast({ style: Toast.Style.Animated, title: "Running claude update..." });
+    const { stdout, stderr } = await runInLoginShell("claude update", "zsh");
+    const text = `${stdout}\n${stderr}`.trim();
+    await showToast({ style: Toast.Style.Success, title: "Update completed", message: text ? text.split("\n").slice(-1)[0] : undefined });
   } catch (error) {
     await showToast({ style: Toast.Style.Failure, title: "Update failed", message: error instanceof Error ? error.message : "Unknown error" });
   }
@@ -101,13 +102,12 @@ export default function Command() {
         accessories={[{ tag: statusTag }]}
         actions={
           <ActionPanel>
-            <Action.CopyToClipboard content={installedVersion || ""} title="Copy Version" />
-            {status === "outdated" && (
+            {status === "outdated" ? (
               <Action
-                title="Install Update"
+                title="Update Now (claude update)"
                 icon={Icon.Download}
                 onAction={async () => {
-                  await installUpdate();
+                  await updateClaude();
                   const [newInstalled, latest] = await Promise.all([
                     getInstalledVersion(),
                     getLatestVersion(),
@@ -118,7 +118,16 @@ export default function Command() {
                   setStatus(newStatus);
                 }}
               />
+            ) : (
+              <Action
+                title="Already on the latest version"
+                icon={Icon.Check}
+                onAction={async () => {
+                  await showToast({ style: Toast.Style.Success, title: "You're on the latest version" });
+                }}
+              />
             )}
+            <Action.CopyToClipboard content={installedVersion || ""} title="Copy Version" />
             <Action
               title="Check for Updates"
               icon={Icon.Globe}
