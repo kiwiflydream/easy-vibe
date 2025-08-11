@@ -2,19 +2,28 @@ import { ActionPanel, Action, Icon, List, showToast, Toast, Color, Form, useNavi
 import { useState, useEffect } from "react";
 
 type ToolId = "claude" | "gemini" | "qwen";
+type PackageManagerId = "npm" | "pnpm" | "yarn";
 
 interface Settings {
   defaultVibeAgent: ToolId;
+  packageManager: PackageManagerId;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   defaultVibeAgent: "claude",
+  packageManager: "npm",
 };
 
 const AGENT_OPTIONS = [
   { id: "claude" as ToolId, title: "Claude Code", description: "Anthropic's AI coding assistant" },
   { id: "gemini" as ToolId, title: "Gemini CLI", description: "Google's AI coding assistant" },
   { id: "qwen" as ToolId, title: "Qwen Code CLI", description: "Alibaba's AI coding assistant" },
+];
+
+const PACKAGE_MANAGER_OPTIONS = [
+  { id: "npm" as PackageManagerId, title: "npm", description: "Node Package Manager" },
+  { id: "pnpm" as PackageManagerId, title: "pnpm", description: "Fast, disk space efficient package manager" },
+  { id: "yarn" as PackageManagerId, title: "Yarn", description: "Fast, reliable, and secure dependency management" },
 ];
 
 async function loadSettings(): Promise<Settings> {
@@ -47,8 +56,8 @@ function DefaultAgentForm({
 }) {
   const { pop } = useNavigation();
 
-  const handleSubmit = (values: { defaultVibeAgent: ToolId }) => {
-    onSettingsChange({ ...settings, defaultVibeAgent: values.defaultVibeAgent });
+  const handleSubmit = (values: { defaultVibeAgent: ToolId; packageManager: PackageManagerId }) => {
+    onSettingsChange({ ...settings, defaultVibeAgent: values.defaultVibeAgent, packageManager: values.packageManager });
     pop();
   };
 
@@ -66,11 +75,25 @@ function DefaultAgentForm({
         value={settings.defaultVibeAgent}
         onChange={(value) => {
           // Allow immediate preview of changes
-          handleSubmit({ defaultVibeAgent: value as ToolId });
+          handleSubmit({ defaultVibeAgent: value as ToolId, packageManager: settings.packageManager });
         }}
       >
         {AGENT_OPTIONS.map((agent) => (
           <Form.Dropdown.Item key={agent.id} title={agent.title} value={agent.id} />
+        ))}
+      </Form.Dropdown>
+      
+      <Form.Dropdown
+        id="packageManager"
+        title="Package Manager"
+        value={settings.packageManager}
+        onChange={(value) => {
+          // Allow immediate preview of changes
+          handleSubmit({ defaultVibeAgent: settings.defaultVibeAgent, packageManager: value as PackageManagerId });
+        }}
+      >
+        {PACKAGE_MANAGER_OPTIONS.map((pm) => (
+          <Form.Dropdown.Item key={pm.id} title={pm.title} value={pm.id} />
         ))}
       </Form.Dropdown>
     </Form>
@@ -119,6 +142,7 @@ export default function Command() {
   };
 
   const currentAgent = AGENT_OPTIONS.find((agent) => agent.id === settings.defaultVibeAgent);
+  const currentPackageManager = PACKAGE_MANAGER_OPTIONS.find((pm) => pm.id === settings.packageManager);
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Search settings...">
@@ -144,6 +168,31 @@ export default function Command() {
                 target={<DefaultAgentForm settings={settings} onSettingsChange={handleSettingsChange} />}
               />
               <Action.CopyToClipboard title="Copy Current Agent" content={currentAgent?.title || "Claude Code"} />
+            </ActionPanel>
+          }
+        />
+        
+        <List.Item
+          key="package-manager"
+          icon={Icon.Box}
+          title="Package Manager"
+          subtitle={currentPackageManager?.title || "npm"}
+          accessories={[
+            {
+              tag: {
+                value: currentPackageManager?.title || "npm",
+                color: Color.Green,
+              },
+            },
+          ]}
+          actions={
+            <ActionPanel>
+              <Action.Push
+                title="Change Package Manager"
+                icon={Icon.Pencil}
+                target={<DefaultAgentForm settings={settings} onSettingsChange={handleSettingsChange} />}
+              />
+              <Action.CopyToClipboard title="Copy Package Manager" content={currentPackageManager?.title || "npm"} />
             </ActionPanel>
           }
         />
@@ -176,6 +225,39 @@ export default function Command() {
                   }}
                 />
                 <Action.CopyToClipboard title="Copy Agent Name" content={agent.title} />
+              </ActionPanel>
+            }
+          />
+        ))}
+      </List.Section>
+
+      <List.Section title="Package Managers">
+        {PACKAGE_MANAGER_OPTIONS.map((pm) => (
+          <List.Item
+            key={pm.id}
+            icon={pm.id === settings.packageManager ? Icon.CheckCircle : Icon.Circle}
+            title={pm.title}
+            subtitle={pm.description}
+            accessories={[
+              {
+                tag: {
+                  value: pm.id === settings.packageManager ? "Default" : "Available",
+                  color: pm.id === settings.packageManager ? Color.Green : Color.SecondaryText,
+                },
+              },
+            ]}
+            actions={
+              <ActionPanel>
+                <Action
+                  title="Set as Default"
+                  icon={Icon.Star}
+                  onAction={async () => {
+                    if (pm.id !== settings.packageManager) {
+                      await handleSettingsChange({ ...settings, packageManager: pm.id });
+                    }
+                  }}
+                />
+                <Action.CopyToClipboard title="Copy Package Manager Name" content={pm.title} />
               </ActionPanel>
             }
           />
