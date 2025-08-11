@@ -1,4 +1,4 @@
-import { ActionPanel, Action, Icon, List, showToast, Toast, Color, Form, useNavigation } from "@raycast/api";
+import { ActionPanel, Action, Icon, List, showToast, Toast, Color, Form, useNavigation, LocalStorage } from "@raycast/api";
 import { useState, useEffect } from "react";
 
 type ToolId = "claude" | "gemini" | "qwen";
@@ -19,7 +19,7 @@ const AGENT_OPTIONS = [
 
 async function loadSettings(): Promise<Settings> {
   try {
-    const storedSettings = await localStorage.getItem("easy-vibe-settings");
+    const storedSettings = await LocalStorage.getItem<string>("easy-vibe-settings");
     if (storedSettings) {
       return { ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) };
     }
@@ -31,7 +31,7 @@ async function loadSettings(): Promise<Settings> {
 
 async function saveSettings(settings: Settings): Promise<void> {
   try {
-    await localStorage.setItem("easy-vibe-settings", JSON.stringify(settings));
+    await LocalStorage.setItem("easy-vibe-settings", JSON.stringify(settings));
   } catch (error) {
     console.error("Error saving settings:", error);
     throw error;
