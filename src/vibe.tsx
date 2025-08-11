@@ -12,6 +12,7 @@ type ToolConfig = {
   title: string;
   npmPackage: string;
   command: string;
+  updateType?: "cli" | "npmGlobal";
   updateCommand?: string;
 };
 
@@ -21,6 +22,7 @@ const TOOLS: ToolConfig[] = [
     title: "Claude Code Version",
     npmPackage: "@anthropic-ai/claude-code",
     command: "claude",
+    updateType: "cli",
     updateCommand: "claude update",
   },
   {
@@ -28,12 +30,14 @@ const TOOLS: ToolConfig[] = [
     title: "Gemini CLI Version",
     npmPackage: "@google/gemini-cli",
     command: "gemini",
+    updateType: "npmGlobal",
   },
   {
     id: "qwen",
     title: "Qwen Code CLI Version",
     npmPackage: "@qwen-code/qwen-code",
     command: "qwen",
+    updateType: "npmGlobal",
   },
 ];
 
@@ -57,6 +61,17 @@ async function updateClaude() {
     await showToast({ style: Toast.Style.Success, title: "Update completed", message: text ? text.split("\n").slice(-1)[0] : undefined });
   } catch (error) {
     await showToast({ style: Toast.Style.Failure, title: "Update failed", message: error instanceof Error ? error.message : "Unknown error" });
+  }
+}
+
+async function updateViaNpmGlobal(npmPackage: string) {
+  try {
+    await showToast({ style: Toast.Style.Animated, title: `Installing ${npmPackage} globally...` });
+    const { stdout, stderr } = await runInLoginShell(`npm i -g ${npmPackage}`, "zsh");
+    const text = `${stdout}\n${stderr}`.trim();
+    await showToast({ style: Toast.Style.Success, title: "Global install completed", message: text ? text.split("\n").slice(-1)[0] : undefined });
+  } catch (error) {
+    await showToast({ style: Toast.Style.Failure, title: "Global install failed", message: error instanceof Error ? error.message : "Unknown error" });
   }
 }
 
@@ -163,12 +178,20 @@ export default function Command() {
             accessories={[{ tag: statusTag }]}
             actions={
               <ActionPanel>
-                {tool.updateCommand && state?.status === "outdated" ? (
+                {state?.status === "outdated" ? (
                   <Action
-                    title={`Update Now (${tool.updateCommand})`}
+                    title={
+                      tool.updateType === "cli"
+                        ? `Update Now (${tool.updateCommand})`
+                        : `Update Now (npm i -g ${tool.npmPackage})`
+                    }
                     icon={Icon.Download}
                     onAction={async () => {
-                      await updateClaude();
+                      if (tool.updateType === "cli" && tool.updateCommand) {
+                        await updateClaude();
+                      } else if (tool.updateType === "npmGlobal") {
+                        await updateViaNpmGlobal(tool.npmPackage);
+                      }
                       const [newInstalled, latest] = await Promise.all([
                         getInstalledVersionForCommand(tool.command),
                         getLatestVersionForPackage(tool.npmPackage),
