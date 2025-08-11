@@ -18,6 +18,12 @@
       "title": "Vibe Settings",
       "description": "Configure extension settings and default vibe agent",
       "mode": "view"
+    },
+    {
+      "name": "vibe-coding",
+      "title": "Vibe Coding",
+      "description": "Launch default AI agent in terminal",
+      "mode": "view"
     }
   ],
   "dependencies": {
