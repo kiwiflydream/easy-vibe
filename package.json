@@ -2,15 +2,15 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "easy-vibe",
   "title": "Easy Vibe",
-  "description": "",
+  "description": "Check and manage AI CLI tool versions",
   "icon": "extension-icon.png",
   "author": "kiwi",
   "license": "MIT",
   "commands": [
     {
-      "name": "vibe",
-      "title": "vibe",
-      "description": "",
+      "name": "vibe-version",
+      "title": "Vibe Version",
+      "description": "Check and manage AI CLI tool versions",
       "mode": "view"
     }
   ],

@@ -58,9 +58,17 @@ async function updateClaude() {
     await showToast({ style: Toast.Style.Animated, title: "Running claude update..." });
     const { stdout, stderr } = await runInLoginShell("claude update", "zsh");
     const text = `${stdout}\n${stderr}`.trim();
-    await showToast({ style: Toast.Style.Success, title: "Update completed", message: text ? text.split("\n").slice(-1)[0] : undefined });
+    await showToast({
+      style: Toast.Style.Success,
+      title: "Update completed",
+      message: text ? text.split("\n").slice(-1)[0] : undefined,
+    });
   } catch (error) {
-    await showToast({ style: Toast.Style.Failure, title: "Update failed", message: error instanceof Error ? error.message : "Unknown error" });
+    await showToast({
+      style: Toast.Style.Failure,
+      title: "Update failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
 
@@ -69,9 +77,17 @@ async function updateViaNpmGlobal(npmPackage: string) {
     await showToast({ style: Toast.Style.Animated, title: `Installing ${npmPackage} globally...` });
     const { stdout, stderr } = await runInLoginShell(`npm i -g ${npmPackage}`, "zsh");
     const text = `${stdout}\n${stderr}`.trim();
-    await showToast({ style: Toast.Style.Success, title: "Global install completed", message: text ? text.split("\n").slice(-1)[0] : undefined });
+    await showToast({
+      style: Toast.Style.Success,
+      title: "Global install completed",
+      message: text ? text.split("\n").slice(-1)[0] : undefined,
+    });
   } catch (error) {
-    await showToast({ style: Toast.Style.Failure, title: "Global install failed", message: error instanceof Error ? error.message : "Unknown error" });
+    await showToast({
+      style: Toast.Style.Failure,
+      title: "Global install failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
 
@@ -82,7 +98,10 @@ function compareVersions(current: string, latest: string): VersionStatus {
   return current.trim() === latest.trim() ? "up-to-date" : "outdated";
 }
 
-async function runInLoginShell(command: string, shell: "zsh" | "bash" = "zsh"): Promise<{ stdout: string; stderr: string }> {
+async function runInLoginShell(
+  command: string,
+  shell: "zsh" | "bash" = "zsh",
+): Promise<{ stdout: string; stderr: string }> {
   const quoted = command.replace(/"/g, '\\"');
   const shellProgram = shell === "zsh" ? "/bin/zsh" : "/bin/bash";
   const { stdout, stderr } = await execAsync(`${shellProgram} -lc "${quoted}"`);
@@ -94,21 +113,22 @@ function extractSemver(text: string): string | null {
   return match ? match[0] : null;
 }
 
-async function getInstalledVersionForCommand(command: string, flags: string[] = ["-v", "--version", "version"]): Promise<string> {
+async function getInstalledVersionForCommand(
+  command: string,
+  flags: string[] = ["-v", "--version", "version"],
+): Promise<string> {
   for (const flag of flags) {
     try {
       const { stdout, stderr } = await runInLoginShell(`${command} ${flag}`, "zsh");
       const text = `${stdout}\n${stderr}`.trim();
       const version = extractSemver(text) || (text ? text : "");
       if (version) return version;
-    } catch (error) {
+    } catch {
       // Try next flag
     }
   }
   return "";
 }
-
-
 
 type ToolState = {
   installedVersion: string;
@@ -128,14 +148,10 @@ export default function Command() {
     let isCancelled = false;
     (async () => {
       setIsLoading(true);
-      const installedVersions = await Promise.all(
-        TOOLS.map((t) => getInstalledVersionForCommand(t.command))
-      );
+      const installedVersions = await Promise.all(TOOLS.map((t) => getInstalledVersionForCommand(t.command)));
       if (isCancelled) return;
 
-      const latestVersions = await Promise.all(
-        TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage))
-      );
+      const latestVersions = await Promise.all(TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage)));
       if (isCancelled) return;
 
       const nextStates: Record<ToolId, ToolState> = { ...toolStates };
@@ -160,12 +176,12 @@ export default function Command() {
     return status === "up-to-date"
       ? { value: "Latest", color: Color.Green }
       : status === "outdated"
-      ? { value: latestVersion ? `Update ${latestVersion}` : "Update Available", color: Color.Orange }
-      : { value: "Unknown", color: Color.SecondaryText };
+        ? { value: latestVersion ? `Update ${latestVersion}` : "Update Available", color: Color.Orange }
+        : { value: "Unknown", color: Color.SecondaryText };
   }
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="AI CLI Versions">
+    <List isLoading={isLoading} searchBarPlaceholder="Search AI CLI versions...">
       {TOOLS.map((tool) => {
         const state = toolStates[tool.id];
         const statusTag = getStatusTag(state?.status ?? "unknown", state?.latestVersion ?? "");
@@ -208,14 +224,22 @@ export default function Command() {
                   />
                 ) : (
                   <Action
-                    title={state?.status === "up-to-date" ? "Already on the latest version" : "Check Installed Version"}
+                    title={state?.status === "up-to-date" ? "Already on the Latest Version" : "Check Installed Version"}
                     icon={Icon.Check}
                     onAction={async () => {
-                      await showToast({ style: Toast.Style.Success, title: state?.status === "up-to-date" ? "You're on the latest version" : (state?.installedVersion ? `Installed: ${state.installedVersion}` : `${tool.command} not detected`) });
+                      await showToast({
+                        style: Toast.Style.Success,
+                        title:
+                          state?.status === "up-to-date"
+                            ? "You're on the latest version"
+                            : state?.installedVersion
+                              ? `Installed: ${state.installedVersion}`
+                              : `${tool.command} not detected`,
+                      });
                     }}
                   />
                 )}
-                <Action.CopyToClipboard content={state?.installedVersion || ""} title="Copy Version" />
+                <Action.CopyToClipboard content={state?.installedVersion || ""} title="Copy to Clipboard" />
                 <Action
                   title="Check for Updates"
                   icon={Icon.Globe}
@@ -233,7 +257,12 @@ export default function Command() {
                     const newStatus = compareVersions(state?.installedVersion ?? "", latest);
                     await showToast({
                       style: newStatus === "up-to-date" ? Toast.Style.Success : Toast.Style.Failure,
-                      title: newStatus === "up-to-date" ? "You're on the latest version" : (latest ? `Update available: ${latest}` : "Update info unavailable"),
+                      title:
+                        newStatus === "up-to-date"
+                          ? "You're on the latest version"
+                          : latest
+                            ? `Update available: ${latest}`
+                            : "Update info unavailable",
                     });
                   }}
                 />
@@ -251,7 +280,10 @@ export default function Command() {
                         status: compareVersions(installed, prev[tool.id].latestVersion),
                       },
                     }));
-                    await showToast({ style: Toast.Style.Success, title: installed ? `Installed: ${installed}` : `${tool.command} not detected` });
+                    await showToast({
+                      style: Toast.Style.Success,
+                      title: installed ? `Installed: ${installed}` : `${tool.command} not detected`,
+                    });
                   }}
                 />
               </ActionPanel>
