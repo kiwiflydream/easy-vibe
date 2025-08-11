@@ -12,6 +12,12 @@
       "title": "Vibe Version",
       "description": "Check and manage AI CLI tool versions",
       "mode": "view"
+    },
+    {
+      "name": "vibe-settings",
+      "title": "Vibe Settings",
+      "description": "Configure extension settings and default vibe agent",
+      "mode": "view"
     }
   ],
   "dependencies": {
