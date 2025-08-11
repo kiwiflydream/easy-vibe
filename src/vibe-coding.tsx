@@ -69,16 +69,32 @@ async function getCurrentDirectory(): Promise<string> {
 
     // Fallback to user's home directory
     const { stdout: homeDir } = await runInLoginShell("echo $HOME", "zsh");
-    return homeDir.trim() || "/Users/" + (process.env.USER || "unknown");
+    const homeResult = homeDir.trim();
+    if (homeResult && homeResult !== "/" && homeResult !== ".") {
+      return homeResult;
+    }
+
+    throw new Error("Unable to determine current directory");
   } catch (error) {
     console.error("Error getting current directory:", error);
-    return process.cwd() || "/unknown";
+    throw new Error(`Failed to get current directory: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 async function launchAgentInTerminal(agentCommand: string): Promise<void> {
   try {
-    const currentDir = await getCurrentDirectory();
+    let currentDir: string;
+    
+    try {
+      currentDir = await getCurrentDirectory();
+    } catch (dirError) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Failed to get current directory",
+        message: dirError instanceof Error ? dirError.message : "Unknown error",
+      });
+      return;
+    }
 
     // Use AppleScript to open Terminal and run the command
     const appleScript = `
@@ -115,11 +131,17 @@ export default async function Command() {
     const agentCommand = AGENT_COMMANDS[defaultAgent];
     
     await launchAgentInTerminal(agentCommand);
+    
+    // Exit immediately after launching
+    process.exit(0);
   } catch (error) {
     await showToast({
       style: Toast.Style.Failure,
       title: "Failed to launch AI agent",
       message: error instanceof Error ? error.message : "Unknown error",
     });
+    
+    // Exit with error code
+    process.exit(1);
   }
 }
