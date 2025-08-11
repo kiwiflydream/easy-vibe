@@ -58,11 +58,29 @@ async function runInLoginShell(
 
 async function getCurrentDirectory(): Promise<string> {
   try {
-    const { stdout } = await runInLoginShell("pwd", "zsh");
-    return stdout.trim();
+    // Try to get the current directory from the frontmost Finder window
+    const { stdout } = await execAsync(`osascript -e '
+      tell application "Finder"
+        if exists (front window) then
+          set currentFolder to (target of front window) as alias
+          return POSIX path of currentFolder
+        else
+          return (home directory) as text
+        end if
+      end tell
+    '`);
+    
+    const result = stdout.trim();
+    if (result && result !== "missing value" && result !== "/" && result !== ".") {
+      return result;
+    }
+
+    // Fallback to user's home directory
+    const { stdout: homeDir } = await runInLoginShell("echo $HOME", "zsh");
+    return homeDir.trim() || "/Users/" + (process.env.USER || "unknown");
   } catch (error) {
     console.error("Error getting current directory:", error);
-    return "/unknown";
+    return process.cwd() || "/unknown";
   }
 }
 
