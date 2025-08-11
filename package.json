@@ -23,7 +23,7 @@
       "name": "vibe-coding",
       "title": "Vibe Coding",
       "description": "Launch default AI agent in terminal",
-      "mode": "view"
+      "mode": "no-view"
     }
   ],
   "dependencies": {
