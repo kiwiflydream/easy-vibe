@@ -6,17 +6,21 @@ const execAsync = promisify(exec);
 
 type ToolId = "claude" | "gemini" | "qwen" | "yolo";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
+type TerminalId = "terminal" | "iterm" | "warp" | "ghostty" | "custom";
 
 interface Settings {
   defaultVibeAgent: ToolId;
   packageManager: PackageManagerId;
   yoloEnabled: boolean;
+  defaultTerminal: TerminalId;
+  customTerminal?: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   defaultVibeAgent: "claude",
   packageManager: "npm",
   yoloEnabled: false,
+  defaultTerminal: "terminal",
 };
 
 const AGENT_COMMANDS: Record<ToolId, string> = {
@@ -61,7 +65,7 @@ async function getCurrentDirectory(): Promise<string> {
         end if
       end tell
     '`);
-    
+
     const result = stdout.trim();
     if (result && result !== "missing value" && result !== "/" && result !== ".") {
       return result;
@@ -81,10 +85,14 @@ async function getCurrentDirectory(): Promise<string> {
   }
 }
 
-async function launchAgentInTerminal(agentCommand: string): Promise<void> {
+async function launchAgentInTerminal(
+  agentCommand: string,
+  terminalId: TerminalId,
+  customTerminal?: string,
+): Promise<void> {
   try {
     let currentDir: string;
-    
+
     try {
       currentDir = await getCurrentDirectory();
     } catch (dirError) {
@@ -96,13 +104,86 @@ async function launchAgentInTerminal(agentCommand: string): Promise<void> {
       return;
     }
 
-    // Use AppleScript to open Terminal and run the command
-    const appleScript = `
-      tell application "Terminal"
-        activate
-        do script "cd '${currentDir}' && ${agentCommand}"
-      end tell
-    `;
+    let terminalName: string;
+    let appleScript: string;
+
+    switch (terminalId) {
+      case "terminal":
+        terminalName = "Terminal";
+        appleScript = `
+          tell application "Terminal"
+            activate
+            do script "cd '${currentDir}' && ${agentCommand}"
+          end tell
+        `;
+        break;
+      case "iterm":
+        terminalName = "iTerm";
+        appleScript = `
+          tell application "iTerm"
+            activate
+            tell current window
+              create tab with default profile
+              tell current session
+                write text "cd '${currentDir}' && ${agentCommand}"
+              end tell
+            end tell
+          end tell
+        `;
+        break;
+      case "warp":
+        terminalName = "Warp";
+        appleScript = `
+          tell application "Warp"
+            activate
+            tell application "System Events"
+              keystroke "cd '${currentDir}' && ${agentCommand}"
+              keystroke return
+            end tell
+          end tell
+        `;
+        break;
+      case "ghostty":
+        terminalName = "Ghostty";
+        appleScript = `
+          tell application "Ghostty"
+            activate
+            tell application "System Events"
+              keystroke "cd '${currentDir}' && ${agentCommand}"
+              keystroke return
+            end tell
+          end tell
+        `;
+        break;
+      case "custom":
+        if (!customTerminal) {
+          await showToast({
+            style: Toast.Style.Failure,
+            title: "Custom terminal not configured",
+            message: "Please set a custom terminal name in settings",
+          });
+          return;
+        }
+        terminalName = customTerminal;
+        appleScript = `
+          tell application "${customTerminal}"
+            activate
+            tell application "System Events"
+              keystroke "cd '${currentDir}' && ${agentCommand}"
+              keystroke return
+            end tell
+          end tell
+        `;
+        break;
+      default:
+        terminalName = "Terminal";
+        appleScript = `
+          tell application "Terminal"
+            activate
+            do script "cd '${currentDir}' && ${agentCommand}"
+          end tell
+        `;
+    }
 
     const { stderr } = await execAsync(`osascript -e '${appleScript}'`);
 
@@ -112,7 +193,7 @@ async function launchAgentInTerminal(agentCommand: string): Promise<void> {
 
     await showToast({
       style: Toast.Style.Success,
-      title: "Terminal launched",
+      title: `${terminalName} launched`,
       message: `${agentCommand} started in ${currentDir}`,
     });
   } catch (error) {
@@ -129,9 +210,9 @@ export default async function Command() {
     const settings = await loadSettings();
     const defaultAgent = settings.defaultVibeAgent;
     const agentCommand = AGENT_COMMANDS[defaultAgent];
-    
-    await launchAgentInTerminal(agentCommand);
-    
+
+    await launchAgentInTerminal(agentCommand, settings.defaultTerminal, settings.customTerminal);
+
     // Exit immediately after launching
     process.exit(0);
   } catch (error) {
@@ -140,7 +221,7 @@ export default async function Command() {
       title: "Failed to launch AI agent",
       message: error instanceof Error ? error.message : "Unknown error",
     });
-    
+
     // Exit with error code
     process.exit(1);
   }

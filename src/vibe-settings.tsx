@@ -1,19 +1,34 @@
-import { ActionPanel, Action, Icon, List, showToast, Toast, Color, Form, useNavigation, LocalStorage } from "@raycast/api";
+import {
+  ActionPanel,
+  Action,
+  Icon,
+  List,
+  showToast,
+  Toast,
+  Color,
+  Form,
+  useNavigation,
+  LocalStorage,
+} from "@raycast/api";
 import { useState, useEffect } from "react";
 
 type ToolId = "claude" | "gemini" | "qwen" | "yolo";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
+type TerminalId = "terminal" | "iterm" | "warp" | "ghostty" | "custom";
 
 interface Settings {
   defaultVibeAgent: ToolId;
   packageManager: PackageManagerId;
   yoloEnabled: boolean;
+  defaultTerminal: TerminalId;
+  customTerminal?: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   defaultVibeAgent: "claude",
   packageManager: "npm",
   yoloEnabled: false,
+  defaultTerminal: "terminal",
 };
 
 const AGENT_OPTIONS = [
@@ -27,6 +42,14 @@ const PACKAGE_MANAGER_OPTIONS = [
   { id: "npm" as PackageManagerId, title: "npm", description: "Node Package Manager" },
   { id: "pnpm" as PackageManagerId, title: "pnpm", description: "Fast, disk space efficient package manager" },
   { id: "yarn" as PackageManagerId, title: "Yarn", description: "Fast, reliable, and secure dependency management" },
+];
+
+const TERMINAL_OPTIONS = [
+  { id: "terminal" as TerminalId, title: "Terminal", description: "macOS default terminal application" },
+  { id: "iterm" as TerminalId, title: "iTerm", description: "iTerm2 - advanced terminal emulator" },
+  { id: "warp" as TerminalId, title: "Warp", description: "Warp - modern terminal with AI features" },
+  { id: "ghostty" as TerminalId, title: "Ghostty", description: "Ghostty - fast, feature-rich terminal" },
+  { id: "custom" as TerminalId, title: "Custom", description: "Specify a custom terminal application" },
 ];
 
 async function loadSettings(): Promise<Settings> {
@@ -50,82 +73,35 @@ async function saveSettings(settings: Settings): Promise<void> {
   }
 }
 
-function DefaultAgentForm({
+function EditCustomTerminalForm({
   settings,
   onSettingsChange,
 }: {
   settings: Settings;
-  onSettingsChange: (settings: Settings) => void;
+  onSettingsChange: (settings: Settings) => Promise<void>;
 }) {
   const { pop } = useNavigation();
 
-  const handleSubmit = (values: { defaultVibeAgent: ToolId; packageManager: PackageManagerId; yoloEnabled: boolean }) => {
-    onSettingsChange({ 
-      ...settings, 
-      defaultVibeAgent: values.defaultVibeAgent, 
-      packageManager: values.packageManager,
-      yoloEnabled: values.yoloEnabled
-    });
-    pop();
+  const handleSubmit = async (values: { customTerminal: string }) => {
+    await onSettingsChange({ ...settings, customTerminal: values.customTerminal });
   };
 
   return (
     <Form
       actions={
         <ActionPanel>
-          <Action.SubmitForm title="Save Settings" icon={Icon.Check} onSubmit={handleSubmit} />
+          <Action.SubmitForm title="Save Custom Terminal" icon={Icon.Check} onSubmit={handleSubmit} />
+          <Action title="Done" icon={Icon.Check} onAction={pop} />
         </ActionPanel>
       }
     >
-      <Form.Dropdown
-        id="defaultVibeAgent"
-        title="Default Vibe Agent"
-        value={settings.defaultVibeAgent}
-        onChange={(value) => {
-          // Allow immediate preview of changes
-          handleSubmit({ 
-            defaultVibeAgent: value as ToolId, 
-            packageManager: settings.packageManager,
-            yoloEnabled: settings.yoloEnabled
-          });
-        }}
-      >
-        {AGENT_OPTIONS.map((agent) => (
-          <Form.Dropdown.Item key={agent.id} title={agent.title} value={agent.id} />
-        ))}
-      </Form.Dropdown>
-      
-      <Form.Dropdown
-        id="packageManager"
-        title="Package Manager"
-        value={settings.packageManager}
-        onChange={(value) => {
-          // Allow immediate preview of changes
-          handleSubmit({ 
-            defaultVibeAgent: settings.defaultVibeAgent, 
-            packageManager: value as PackageManagerId,
-            yoloEnabled: settings.yoloEnabled
-          });
-        }}
-      >
-        {PACKAGE_MANAGER_OPTIONS.map((pm) => (
-          <Form.Dropdown.Item key={pm.id} title={pm.title} value={pm.id} />
-        ))}
-      </Form.Dropdown>
-      
-      <Form.Checkbox
-        id="yoloEnabled"
-        label="Enable YOLO Agent"
-        value={settings.yoloEnabled}
-        onChange={(value) => {
-          // Allow immediate preview of changes
-          handleSubmit({ 
-            defaultVibeAgent: settings.defaultVibeAgent, 
-            packageManager: settings.packageManager,
-            yoloEnabled: value
-          });
-        }}
+      <Form.TextField
+        id="customTerminal"
+        title="Custom Terminal Name"
+        placeholder="Enter terminal application name (e.g., Alacritty, WezTerm)"
+        value={settings.customTerminal || ""}
       />
+      <Form.Description text="Enter the exact name of the terminal application as it appears in macOS Applications folder or in the application's bundle identifier." />
     </Form>
   );
 }
@@ -173,16 +149,15 @@ export default function Command() {
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Search settings...">
-
       <List.Section title="Available Agents">
         {AGENT_OPTIONS.map((agent) => {
           // Show YOLO agent only if enabled, or if it's currently the default agent
           if (agent.id === "yolo" && !settings.yoloEnabled && agent.id !== settings.defaultVibeAgent) {
             return null;
           }
-          
+
           const isDefault = agent.id === settings.defaultVibeAgent;
-          
+
           return (
             <List.Item
               key={agent.id}
@@ -219,7 +194,7 @@ export default function Command() {
       <List.Section title="Package Managers">
         {PACKAGE_MANAGER_OPTIONS.map((pm) => {
           const isDefault = pm.id === settings.packageManager;
-          
+
           return (
             <List.Item
               key={pm.id}
@@ -253,12 +228,78 @@ export default function Command() {
         })}
       </List.Section>
 
+      <List.Section title="Terminals">
+        {TERMINAL_OPTIONS.map((terminal) => {
+          const isDefault = terminal.id === settings.defaultTerminal;
+
+          return (
+            <List.Item
+              key={terminal.id}
+              icon={isDefault ? Icon.CheckCircle : Icon.Circle}
+              title={terminal.title}
+              subtitle={terminal.description}
+              accessories={[
+                {
+                  tag: {
+                    value: isDefault ? "Default" : "Available",
+                    color: isDefault ? Color.Green : Color.SecondaryText,
+                  },
+                },
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action
+                    title="Set as Default"
+                    icon={Icon.Star}
+                    onAction={async () => {
+                      if (terminal.id !== settings.defaultTerminal) {
+                        await handleSettingsChange({ ...settings, defaultTerminal: terminal.id });
+                      }
+                    }}
+                  />
+                  <Action.CopyToClipboard title="Copy Terminal Name" content={terminal.title} />
+                </ActionPanel>
+              }
+            />
+          );
+        })}
+
+        {settings.defaultTerminal === "custom" && (
+          <List.Item
+            key="custom-terminal-name"
+            icon={Icon.Gear}
+            title="Custom Terminal Name"
+            subtitle={settings.customTerminal || "Not set"}
+            accessories={[
+              {
+                tag: {
+                  value: "Custom",
+                  color: Color.Blue,
+                },
+              },
+            ]}
+            actions={
+              <ActionPanel>
+                <Action.Push
+                  title="Edit Custom Terminal"
+                  icon={Icon.Pencil}
+                  target={<EditCustomTerminalForm settings={settings} onSettingsChange={handleSettingsChange} />}
+                />
+                <Action.CopyToClipboard title="Copy Custom Terminal Name" content={settings.customTerminal || ""} />
+              </ActionPanel>
+            }
+          />
+        )}
+      </List.Section>
+
       <List.Section title="Agent Config">
         <List.Item
           key="yolo-toggle"
           icon={Icon.Bolt}
           title="YOLO Agent"
-          subtitle={settings.yoloEnabled ? "Enabled - YOLO agent is available for selection" : "Disabled - YOLO agent is hidden"}
+          subtitle={
+            settings.yoloEnabled ? "Enabled - YOLO agent is available for selection" : "Disabled - YOLO agent is hidden"
+          }
           accessories={[
             {
               tag: {
@@ -270,15 +311,15 @@ export default function Command() {
           actions={
             <ActionPanel>
               <Action
-                title={settings.yoloEnabled ? "Disable YOLO Agent" : "Enable YOLO Agent"}
+                title={settings.yoloEnabled ? "Disable Yolo Agent" : "Enable Yolo Agent"}
                 icon={settings.yoloEnabled ? Icon.XMarkCircle : Icon.CheckCircle}
                 onAction={async () => {
                   await handleSettingsChange({ ...settings, yoloEnabled: !settings.yoloEnabled });
                 }}
               />
-              <Action.CopyToClipboard 
-                title="Copy YOLO Status" 
-                content={settings.yoloEnabled ? "Enabled" : "Disabled"} 
+              <Action.CopyToClipboard
+                title="Copy Yolo Status"
+                content={settings.yoloEnabled ? "Enabled" : "Disabled"}
               />
             </ActionPanel>
           }
