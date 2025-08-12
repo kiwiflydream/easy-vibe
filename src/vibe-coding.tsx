@@ -122,6 +122,9 @@ async function launchAgentInTerminal(
         appleScript = `
           tell application "iTerm"
             activate
+            if (count of windows) is 0 then
+              create window with default profile
+            end if
             tell current window
               create tab with default profile
               tell current session
