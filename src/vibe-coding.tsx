@@ -119,20 +119,15 @@ async function launchAgentInTerminal(
         break;
       case "iterm":
         terminalName = "iTerm";
-        appleScript = `
-          tell application "iTerm"
-            activate
-            if (count of windows) is 0 then
-              create window with default profile
-            end if
-            tell current window
-              create tab with default profile
-              tell current session
-                write text "cd '${currentDir}' && ${agentCommand}"
-              end tell
-            end tell
-          end tell
-        `;
+        appleScript = `tell application "iTerm"
+    activate
+    create window with default profile
+    tell current window
+        tell current session
+            write text "cd '${currentDir}' && ${agentCommand}"
+        end tell
+    end tell
+end tell`;
         break;
       case "warp":
         terminalName = "Warp";
