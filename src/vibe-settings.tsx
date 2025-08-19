@@ -12,7 +12,7 @@ import {
 } from "@raycast/api";
 import { useState, useEffect } from "react";
 
-type ToolId = "claude" | "gemini" | "qwen" | "yolo";
+type ToolId = "claude" | "gemini" | "qwen";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
 type TerminalId = "terminal" | "iterm" | "custom";
 
@@ -35,7 +35,6 @@ const AGENT_OPTIONS = [
   { id: "claude" as ToolId, title: "Claude Code", description: "Anthropic's AI coding assistant" },
   { id: "gemini" as ToolId, title: "Gemini CLI", description: "Google's AI coding assistant" },
   { id: "qwen" as ToolId, title: "Qwen Code CLI", description: "Alibaba's AI coding assistant" },
-  { id: "yolo" as ToolId, title: "YOLO", description: "You Only Look Once - AI assistant" },
 ];
 
 const PACKAGE_MANAGER_OPTIONS = [
@@ -149,11 +148,6 @@ export default function Command() {
     <List isLoading={isLoading} searchBarPlaceholder="Search settings...">
       <List.Section title="Available Agents">
         {AGENT_OPTIONS.map((agent) => {
-          // Show YOLO agent only if enabled, or if it's currently the default agent
-          if (agent.id === "yolo" && !settings.yoloEnabled && agent.id !== settings.defaultVibeAgent) {
-            return null;
-          }
-
           const isDefault = agent.id === settings.defaultVibeAgent;
 
           return (
@@ -290,13 +284,15 @@ export default function Command() {
         )}
       </List.Section>
 
-      <List.Section title="Agent Config">
+      <List.Section title="Launch Mode">
         <List.Item
           key="yolo-toggle"
           icon={Icon.Bolt}
-          title="YOLO Agent"
+          title="YOLO Mode"
           subtitle={
-            settings.yoloEnabled ? "Enabled - YOLO agent is available for selection" : "Disabled - YOLO agent is hidden"
+            settings.yoloEnabled
+              ? "Enabled - Skip confirmations when launching agents"
+              : "Disabled - Normal agent launch behavior"
           }
           accessories={[
             {
@@ -309,14 +305,14 @@ export default function Command() {
           actions={
             <ActionPanel>
               <Action
-                title={settings.yoloEnabled ? "Disable Yolo Agent" : "Enable Yolo Agent"}
+                title={settings.yoloEnabled ? "Disable Yolo Mode" : "Enable Yolo Mode"}
                 icon={settings.yoloEnabled ? Icon.XMarkCircle : Icon.CheckCircle}
                 onAction={async () => {
                   await handleSettingsChange({ ...settings, yoloEnabled: !settings.yoloEnabled });
                 }}
               />
               <Action.CopyToClipboard
-                title="Copy Yolo Status"
+                title="Copy Yolo Mode Status"
                 content={settings.yoloEnabled ? "Enabled" : "Disabled"}
               />
             </ActionPanel>
