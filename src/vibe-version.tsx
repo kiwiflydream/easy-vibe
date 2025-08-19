@@ -1,4 +1,4 @@
-import { ActionPanel, Action, Icon, List, showToast, Toast, Color } from "@raycast/api";
+import { ActionPanel, Action, Icon, List, showToast, Toast, Color, LocalStorage } from "@raycast/api";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 const execAsync = promisify(exec);
 
 type ToolId = "claude" | "gemini" | "qwen";
+type PackageManagerId = "npm" | "pnpm" | "yarn";
 
 type ToolConfig = {
   id: ToolId;
@@ -41,14 +42,18 @@ const TOOLS: ToolConfig[] = [
   },
 ];
 
-async function getLatestVersionForPackage(npmPackage: string): Promise<string> {
+async function getLatestVersionForPackage(npmPackage: string, packageManager: PackageManagerId): Promise<string> {
   try {
-    const { stdout, stderr } = await runInLoginShell(`npm view ${npmPackage} version`, "zsh");
+    const viewCommand =
+      packageManager === "yarn"
+        ? `yarn info ${npmPackage} version --json`
+        : `${packageManager} view ${npmPackage} version`;
+    const { stdout, stderr } = await runInLoginShell(viewCommand, "zsh");
     const text = `${stdout}\n${stderr}`.trim();
     const version = extractSemver(text) || text;
     return version;
   } catch (error) {
-    console.error("Error getting latest version via npm:", error);
+    console.error("Error getting latest version via", packageManager, ":", error);
     return "";
   }
 }
@@ -72,10 +77,12 @@ async function updateClaude() {
   }
 }
 
-async function updateViaNpmGlobal(npmPackage: string) {
+async function updateViaNpmGlobal(npmPackage: string, packageManager: PackageManagerId) {
   try {
     await showToast({ style: Toast.Style.Animated, title: `Installing ${npmPackage} globally...` });
-    const { stdout, stderr } = await runInLoginShell(`npm i -g ${npmPackage}`, "zsh");
+    const installCommand =
+      packageManager === "yarn" ? `yarn global add ${npmPackage}` : `${packageManager} install -g ${npmPackage}`;
+    const { stdout, stderr } = await runInLoginShell(installCommand, "zsh");
     const text = `${stdout}\n${stderr}`.trim();
     await showToast({
       style: Toast.Style.Success,
@@ -91,7 +98,11 @@ async function updateViaNpmGlobal(npmPackage: string) {
   }
 }
 
-async function updateAllOutdatedTools(tools: ToolConfig[], currentStates: Record<ToolId, ToolState>): Promise<void> {
+async function updateAllOutdatedTools(
+  tools: ToolConfig[],
+  currentStates: Record<ToolId, ToolState>,
+  packageManager: PackageManagerId,
+): Promise<void> {
   const outdatedTools = tools.filter((tool) => currentStates[tool.id]?.status === "outdated");
 
   if (outdatedTools.length === 0) {
@@ -109,7 +120,7 @@ async function updateAllOutdatedTools(tools: ToolConfig[], currentStates: Record
       if (tool.updateType === "cli" && tool.updateCommand) {
         await updateClaude();
       } else if (tool.updateType === "npmGlobal") {
-        await updateViaNpmGlobal(tool.npmPackage);
+        await updateViaNpmGlobal(tool.npmPackage, packageManager);
       }
       return tool.id;
     }),
@@ -180,7 +191,35 @@ type ToolState = {
   status: VersionStatus;
 };
 
+interface Settings {
+  defaultVibeAgent: ToolId;
+  packageManager: PackageManagerId;
+  yoloEnabled: boolean;
+  defaultTerminal: "terminal" | "iterm" | "custom";
+  customTerminal?: string;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  defaultVibeAgent: "claude",
+  packageManager: "npm",
+  yoloEnabled: false,
+  defaultTerminal: "terminal",
+};
+
+async function loadSettings(): Promise<Settings> {
+  try {
+    const storedSettings = await LocalStorage.getItem<string>("easy-vibe-settings");
+    if (storedSettings) {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) };
+    }
+  } catch (error) {
+    console.error("Error loading settings:", error);
+  }
+  return DEFAULT_SETTINGS;
+}
+
 export default function Command() {
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [toolStates, setToolStates] = useState<Record<ToolId, ToolState>>({
     claude: { installedVersion: "", latestVersion: "", status: "unknown" },
     gemini: { installedVersion: "", latestVersion: "", status: "unknown" },
@@ -192,10 +231,18 @@ export default function Command() {
     let isCancelled = false;
     (async () => {
       setIsLoading(true);
+
+      // Load settings first
+      const loadedSettings = await loadSettings();
+      if (isCancelled) return;
+      setSettings(loadedSettings);
+
       const installedVersions = await Promise.all(TOOLS.map((t) => getInstalledVersionForCommand(t.command)));
       if (isCancelled) return;
 
-      const latestVersions = await Promise.all(TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage)));
+      const latestVersions = await Promise.all(
+        TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage, loadedSettings.packageManager)),
+      );
       if (isCancelled) return;
 
       const nextStates: Record<ToolId, ToolState> = { ...toolStates };
@@ -242,11 +289,11 @@ export default function Command() {
                   title="Update All Outdated Tools"
                   icon={Icon.Download}
                   onAction={async () => {
-                    await updateAllOutdatedTools(TOOLS, toolStates);
+                    await updateAllOutdatedTools(TOOLS, toolStates, settings.packageManager);
                     // Refresh all tool states after updates
                     const [installedVersions, latestVersions] = await Promise.all([
                       Promise.all(TOOLS.map((t) => getInstalledVersionForCommand(t.command))),
-                      Promise.all(TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage))),
+                      Promise.all(TOOLS.map((t) => getLatestVersionForPackage(t.npmPackage, settings.packageManager))),
                     ]);
 
                     const nextStates: Record<ToolId, ToolState> = { ...toolStates };
@@ -285,18 +332,18 @@ export default function Command() {
                       title={
                         tool.updateType === "cli"
                           ? `Update Now (${tool.updateCommand})`
-                          : `Update Now (npm i -g ${tool.npmPackage})`
+                          : `Update Now (${settings.packageManager === "yarn" ? "yarn global add" : settings.packageManager + " i -g"} ${tool.npmPackage})`
                       }
                       icon={Icon.Download}
                       onAction={async () => {
                         if (tool.updateType === "cli" && tool.updateCommand) {
                           await updateClaude();
                         } else if (tool.updateType === "npmGlobal") {
-                          await updateViaNpmGlobal(tool.npmPackage);
+                          await updateViaNpmGlobal(tool.npmPackage, settings.packageManager);
                         }
                         const [newInstalled, latest] = await Promise.all([
                           getInstalledVersionForCommand(tool.command),
-                          getLatestVersionForPackage(tool.npmPackage),
+                          getLatestVersionForPackage(tool.npmPackage, settings.packageManager),
                         ]);
                         setToolStates((prev) => ({
                           ...prev,
@@ -333,7 +380,7 @@ export default function Command() {
                     icon={Icon.Globe}
                     onAction={async () => {
                       await showToast({ style: Toast.Style.Animated, title: "Checking for updates..." });
-                      const latest = await getLatestVersionForPackage(tool.npmPackage);
+                      const latest = await getLatestVersionForPackage(tool.npmPackage, settings.packageManager);
                       setToolStates((prev) => ({
                         ...prev,
                         [tool.id]: {
