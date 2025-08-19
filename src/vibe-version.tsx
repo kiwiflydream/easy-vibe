@@ -79,6 +79,27 @@ async function updateClaude() {
 
 async function updateViaNpmGlobal(npmPackage: string, packageManager: PackageManagerId) {
   try {
+    await showToast({ style: Toast.Style.Animated, title: `Updating ${npmPackage} globally...` });
+    const installCommand =
+      packageManager === "yarn" ? `yarn global add ${npmPackage}` : `${packageManager} install -g ${npmPackage}`;
+    const { stdout, stderr } = await runInLoginShell(installCommand, "zsh");
+    const text = `${stdout}\n${stderr}`.trim();
+    await showToast({
+      style: Toast.Style.Success,
+      title: "Update completed",
+      message: text ? text.split("\n").slice(-1)[0] : undefined,
+    });
+  } catch (error) {
+    await showToast({
+      style: Toast.Style.Failure,
+      title: "Update failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function installViaNpmGlobal(npmPackage: string, packageManager: PackageManagerId) {
+  try {
     await showToast({ style: Toast.Style.Animated, title: `Installing ${npmPackage} globally...` });
     const installCommand =
       packageManager === "yarn" ? `yarn global add ${npmPackage}` : `${packageManager} install -g ${npmPackage}`;
@@ -86,13 +107,13 @@ async function updateViaNpmGlobal(npmPackage: string, packageManager: PackageMan
     const text = `${stdout}\n${stderr}`.trim();
     await showToast({
       style: Toast.Style.Success,
-      title: "Global install completed",
+      title: "Installation completed",
       message: text ? text.split("\n").slice(-1)[0] : undefined,
     });
   } catch (error) {
     await showToast({
       style: Toast.Style.Failure,
-      title: "Global install failed",
+      title: "Installation failed",
       message: error instanceof Error ? error.message : "Unknown error",
     });
   }
@@ -103,7 +124,9 @@ async function updateAllOutdatedTools(
   currentStates: Record<ToolId, ToolState>,
   packageManager: PackageManagerId,
 ): Promise<void> {
-  const outdatedTools = tools.filter((tool) => currentStates[tool.id]?.status === "outdated");
+  const outdatedTools = tools.filter(
+    (tool) => currentStates[tool.id]?.status === "outdated" && currentStates[tool.id]?.commandExists,
+  );
 
   if (outdatedTools.length === 0) {
     await showToast({ style: Toast.Style.Success, title: "All tools are up to date" });
@@ -168,10 +191,24 @@ function extractSemver(text: string): string | null {
   return match ? match[0] : null;
 }
 
+async function checkCommandExists(command: string): Promise<boolean> {
+  try {
+    const { stdout } = await runInLoginShell(`command -v ${command}`, "zsh");
+    return stdout.trim() !== "";
+  } catch {
+    return false;
+  }
+}
+
 async function getInstalledVersionForCommand(
   command: string,
   flags: string[] = ["-v", "--version", "version"],
 ): Promise<string> {
+  const commandExists = await checkCommandExists(command);
+  if (!commandExists) {
+    return "";
+  }
+
   for (const flag of flags) {
     try {
       const { stdout, stderr } = await runInLoginShell(`${command} ${flag}`, "zsh");
@@ -189,6 +226,7 @@ type ToolState = {
   installedVersion: string;
   latestVersion: string;
   status: VersionStatus;
+  commandExists: boolean;
 };
 
 interface Settings {
@@ -221,9 +259,9 @@ async function loadSettings(): Promise<Settings> {
 export default function Command() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [toolStates, setToolStates] = useState<Record<ToolId, ToolState>>({
-    claude: { installedVersion: "", latestVersion: "", status: "unknown" },
-    gemini: { installedVersion: "", latestVersion: "", status: "unknown" },
-    qwen: { installedVersion: "", latestVersion: "", status: "unknown" },
+    claude: { installedVersion: "", latestVersion: "", status: "unknown", commandExists: false },
+    gemini: { installedVersion: "", latestVersion: "", status: "unknown", commandExists: false },
+    qwen: { installedVersion: "", latestVersion: "", status: "unknown", commandExists: false },
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -246,15 +284,18 @@ export default function Command() {
       if (isCancelled) return;
 
       const nextStates: Record<ToolId, ToolState> = { ...toolStates };
-      TOOLS.forEach((t, index) => {
-        const installed = installedVersions[index];
-        const latest = latestVersions[index];
-        nextStates[t.id] = {
+      for (let i = 0; i < TOOLS.length; i++) {
+        const tool = TOOLS[i];
+        const installed = installedVersions[i];
+        const latest = latestVersions[i];
+        const commandExists = await checkCommandExists(tool.command);
+        nextStates[tool.id] = {
           installedVersion: installed || "Not detected",
           latestVersion: latest,
           status: compareVersions(installed, latest),
+          commandExists,
         };
-      });
+      }
       setToolStates(nextStates);
       setIsLoading(false);
     })();
@@ -297,15 +338,18 @@ export default function Command() {
                     ]);
 
                     const nextStates: Record<ToolId, ToolState> = { ...toolStates };
-                    TOOLS.forEach((t, index) => {
-                      const installed = installedVersions[index];
-                      const latest = latestVersions[index];
-                      nextStates[t.id] = {
+                    for (let i = 0; i < TOOLS.length; i++) {
+                      const tool = TOOLS[i];
+                      const installed = installedVersions[i];
+                      const latest = latestVersions[i];
+                      const commandExists = await checkCommandExists(tool.command);
+                      nextStates[tool.id] = {
                         installedVersion: installed || "Not detected",
                         latestVersion: latest,
                         status: compareVersions(installed, latest),
+                        commandExists,
                       };
-                    });
+                    }
                     setToolStates(nextStates);
                   }}
                 />
@@ -327,7 +371,29 @@ export default function Command() {
               accessories={[{ tag: statusTag }]}
               actions={
                 <ActionPanel>
-                  {state?.status === "outdated" ? (
+                  {!state?.commandExists ? (
+                    <Action
+                      title={`Install Now (${settings.packageManager === "yarn" ? "yarn global add" : settings.packageManager + " i -g"} ${tool.npmPackage})`}
+                      icon={Icon.Download}
+                      onAction={async () => {
+                        await installViaNpmGlobal(tool.npmPackage, settings.packageManager);
+                        const [newInstalled, latest] = await Promise.all([
+                          getInstalledVersionForCommand(tool.command),
+                          getLatestVersionForPackage(tool.npmPackage, settings.packageManager),
+                        ]);
+                        const commandExists = await checkCommandExists(tool.command);
+                        setToolStates((prev) => ({
+                          ...prev,
+                          [tool.id]: {
+                            installedVersion: newInstalled || "Not detected",
+                            latestVersion: latest,
+                            status: compareVersions(newInstalled, latest),
+                            commandExists,
+                          },
+                        }));
+                      }}
+                    />
+                  ) : state?.status === "outdated" ? (
                     <Action
                       title={
                         tool.updateType === "cli"
@@ -345,12 +411,14 @@ export default function Command() {
                           getInstalledVersionForCommand(tool.command),
                           getLatestVersionForPackage(tool.npmPackage, settings.packageManager),
                         ]);
+                        const commandExists = await checkCommandExists(tool.command);
                         setToolStates((prev) => ({
                           ...prev,
                           [tool.id]: {
                             installedVersion: newInstalled || "Not detected",
                             latestVersion: latest,
                             status: compareVersions(newInstalled, latest),
+                            commandExists,
                           },
                         }));
                       }}
@@ -387,6 +455,7 @@ export default function Command() {
                           installedVersion: prev[tool.id].installedVersion,
                           latestVersion: latest,
                           status: compareVersions(prev[tool.id].installedVersion, latest),
+                          commandExists: prev[tool.id].commandExists,
                         },
                       }));
                       const newStatus = compareVersions(state?.installedVersion ?? "", latest);
@@ -407,12 +476,14 @@ export default function Command() {
                     onAction={async () => {
                       await showToast({ style: Toast.Style.Animated, title: "Detecting installed version..." });
                       const installed = await getInstalledVersionForCommand(tool.command);
+                      const commandExists = await checkCommandExists(tool.command);
                       setToolStates((prev) => ({
                         ...prev,
                         [tool.id]: {
                           installedVersion: installed || "Not detected",
                           latestVersion: prev[tool.id].latestVersion,
                           status: compareVersions(installed, prev[tool.id].latestVersion),
+                          commandExists,
                         },
                       }));
                       await showToast({
