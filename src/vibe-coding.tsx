@@ -30,6 +30,13 @@ const AGENT_COMMANDS: Record<ToolId, string> = {
   yolo: "yolo",
 };
 
+const YOLO_AGENT_ARGS: Record<ToolId, string> = {
+  claude: "--dangerously-skip-permissions",
+  gemini: "-y",
+  qwen: "-y",
+  yolo: "",
+};
+
 async function loadSettings(): Promise<Settings> {
   try {
     const storedSettings = await LocalStorage.getItem<string>("easy-vibe-settings");
@@ -89,6 +96,7 @@ async function launchAgentInTerminal(
   agentCommand: string,
   terminalId: TerminalId,
   customTerminal?: string,
+  yoloMode: boolean = false,
 ): Promise<void> {
   try {
     let currentDir: string;
@@ -113,7 +121,7 @@ async function launchAgentInTerminal(
         appleScript = `
           tell application "Terminal"
             activate
-            do script "cd '${currentDir}' && ${agentCommand}"
+            do script "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
           end tell
         `;
         break;
@@ -124,7 +132,7 @@ async function launchAgentInTerminal(
     create window with default profile
     tell current window
         tell current session
-            write text "cd '${currentDir}' && ${agentCommand}"
+            write text "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
         end tell
     end tell
 end tell`;
@@ -143,7 +151,7 @@ end tell`;
           tell application "${customTerminal}"
             activate
             tell application "System Events"
-              keystroke "cd '${currentDir}' && ${agentCommand}"
+              keystroke "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
               keystroke return
             end tell
           end tell
@@ -185,7 +193,7 @@ export default async function Command() {
     const defaultAgent = settings.defaultVibeAgent;
     const agentCommand = AGENT_COMMANDS[defaultAgent];
 
-    await launchAgentInTerminal(agentCommand, settings.defaultTerminal, settings.customTerminal);
+    await launchAgentInTerminal(agentCommand, settings.defaultTerminal, settings.customTerminal, settings.yoloEnabled);
 
     // Exit immediately after launching
     process.exit(0);
