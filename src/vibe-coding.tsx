@@ -6,7 +6,7 @@ const execAsync = promisify(exec);
 
 type ToolId = "claude" | "gemini" | "qwen" | "yolo";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
-type TerminalId = "terminal" | "iterm" | "warp" | "ghostty" | "custom";
+type TerminalId = "terminal" | "iterm" | "custom";
 
 interface Settings {
   defaultVibeAgent: ToolId;
@@ -128,30 +128,6 @@ async function launchAgentInTerminal(
         end tell
     end tell
 end tell`;
-        break;
-      case "warp":
-        terminalName = "Warp";
-        appleScript = `
-          tell application "Warp"
-            activate
-            tell application "System Events"
-              keystroke "cd '${currentDir}' && ${agentCommand}"
-              keystroke return
-            end tell
-          end tell
-        `;
-        break;
-      case "ghostty":
-        terminalName = "Ghostty";
-        appleScript = `
-          tell application "Ghostty"
-            activate
-            tell application "System Events"
-              keystroke "cd '${currentDir}' && ${agentCommand}"
-              keystroke return
-            end tell
-          end tell
-        `;
         break;
       case "custom":
         if (!customTerminal) {

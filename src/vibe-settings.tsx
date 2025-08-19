@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 
 type ToolId = "claude" | "gemini" | "qwen" | "yolo";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
-type TerminalId = "terminal" | "iterm" | "warp" | "ghostty" | "custom";
+type TerminalId = "terminal" | "iterm" | "custom";
 
 interface Settings {
   defaultVibeAgent: ToolId;
@@ -47,8 +47,6 @@ const PACKAGE_MANAGER_OPTIONS = [
 const TERMINAL_OPTIONS = [
   { id: "terminal" as TerminalId, title: "Terminal", description: "macOS default terminal application" },
   { id: "iterm" as TerminalId, title: "iTerm", description: "iTerm2 - advanced terminal emulator" },
-  { id: "warp" as TerminalId, title: "Warp", description: "Warp - modern terminal with AI features" },
-  { id: "ghostty" as TerminalId, title: "Ghostty", description: "Ghostty - fast, feature-rich terminal" },
   { id: "custom" as TerminalId, title: "Custom", description: "Specify a custom terminal application" },
 ];
 
