@@ -194,8 +194,8 @@ export default async function Command() {
 
     await launchAgentInTerminal(agentCommand, settings.defaultTerminal, settings.customTerminal, settings.yoloEnabled);
 
-    // Exit immediately after launching
-    process.exit(0);
+    // Let the command complete naturally
+    return;
   } catch (error) {
     await showToast({
       style: Toast.Style.Failure,
@@ -203,7 +203,7 @@ export default async function Command() {
       message: error instanceof Error ? error.message : "Unknown error",
     });
 
-    // Exit with error code
-    process.exit(1);
+    // Let the command complete naturally
+    return;
   }
 }
