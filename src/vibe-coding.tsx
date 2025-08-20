@@ -92,6 +92,16 @@ async function getCurrentDirectory(): Promise<string> {
   }
 }
 
+function escapeShellArg(arg: string): string {
+  // Escape shell arguments by wrapping in single quotes and escaping internal single quotes
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+function escapeAppleScriptString(str: string): string {
+  // Escape strings for AppleScript by escaping double quotes and backslashes
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 async function launchAgentInTerminal(
   agentCommand: string,
   terminalId: TerminalId,
@@ -121,7 +131,7 @@ async function launchAgentInTerminal(
         appleScript = `
           tell application "Terminal"
             activate
-            do script "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
+            do script "cd ${escapeShellArg(currentDir)} && ${escapeShellArg(agentCommand)}${yoloMode ? " " + escapeShellArg(YOLO_AGENT_ARGS[agentCommand as ToolId]) : ""}"
           end tell
         `;
         break;
@@ -132,7 +142,7 @@ async function launchAgentInTerminal(
     create window with default profile
     tell current window
         tell current session
-            write text "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
+            write text "cd ${escapeShellArg(currentDir)} && ${escapeShellArg(agentCommand)}${yoloMode ? " " + escapeShellArg(YOLO_AGENT_ARGS[agentCommand as ToolId]) : ""}"
         end tell
     end tell
 end tell`;
@@ -146,12 +156,22 @@ end tell`;
           });
           return;
         }
+        
+        // Validate custom terminal name - only allow alphanumeric, spaces, hyphens, and underscores
+        if (!/^[a-zA-Z0-9\s\-_]+$/.test(customTerminal)) {
+          await showToast({
+            style: Toast.Style.Failure,
+            title: "Invalid terminal name",
+            message: "Terminal name can only contain letters, numbers, spaces, hyphens, and underscores",
+          });
+          return;
+        }
         terminalName = customTerminal;
         appleScript = `
-          tell application "${customTerminal}"
+          tell application "${escapeAppleScriptString(customTerminal)}"
             activate
             tell application "System Events"
-              keystroke "cd '${currentDir}' && ${agentCommand}${yoloMode ? " " + YOLO_AGENT_ARGS[agentCommand as ToolId] : ""}"
+              keystroke "cd ${escapeShellArg(currentDir)} && ${escapeShellArg(agentCommand)}${yoloMode ? " " + escapeShellArg(YOLO_AGENT_ARGS[agentCommand as ToolId]) : ""}"
               keystroke return
             end tell
           end tell
@@ -162,12 +182,12 @@ end tell`;
         appleScript = `
           tell application "Terminal"
             activate
-            do script "cd '${currentDir}' && ${agentCommand}"
+            do script "cd ${escapeShellArg(currentDir)} && ${escapeShellArg(agentCommand)}"
           end tell
         `;
     }
 
-    const { stderr } = await execAsync(`osascript -e '${appleScript}'`);
+    const { stderr } = await execAsync(`osascript -e '${appleScript.replace(/'/g, "'\\''")}'`);
 
     if (stderr) {
       console.warn("AppleScript warning:", stderr);
