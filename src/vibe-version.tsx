@@ -1,4 +1,5 @@
 import { ActionPanel, Action, Icon, List, showToast, Toast, Color, LocalStorage } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { useEffect, useState } from "react";
@@ -69,8 +70,7 @@ async function updateClaude() {
       message: text ? text.split("\n").slice(-1)[0] : undefined,
     });
   } catch (error) {
-    await showToast({
-      style: Toast.Style.Failure,
+    await showFailureToast({
       title: "Update failed",
       message: error instanceof Error ? error.message : "Unknown error",
     });
@@ -90,8 +90,7 @@ async function updateViaNpmGlobal(npmPackage: string, packageManager: PackageMan
       message: text ? text.split("\n").slice(-1)[0] : undefined,
     });
   } catch (error) {
-    await showToast({
-      style: Toast.Style.Failure,
+    await showFailureToast({
       title: "Update failed",
       message: error instanceof Error ? error.message : "Unknown error",
     });
@@ -111,8 +110,7 @@ async function installViaNpmGlobal(npmPackage: string, packageManager: PackageMa
       message: text ? text.split("\n").slice(-1)[0] : undefined,
     });
   } catch (error) {
-    await showToast({
-      style: Toast.Style.Failure,
+    await showFailureToast({
       title: "Installation failed",
       message: error instanceof Error ? error.message : "Unknown error",
     });
@@ -162,8 +160,7 @@ async function updateAllOutdatedTools(
 
   const failedCount = updateResults.filter((result) => result.status === "rejected").length;
   if (failedCount > 0) {
-    await showToast({
-      style: Toast.Style.Failure,
+    await showFailureToast({
       title: `${failedCount} update${failedCount > 1 ? "s" : ""} failed`,
     });
   }

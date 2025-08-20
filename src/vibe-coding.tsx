@@ -4,7 +4,7 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-type ToolId = "claude" | "gemini" | "qwen";
+type ToolId = "claude" | "gemini" | "qwen" | "yolo";
 type PackageManagerId = "npm" | "pnpm" | "yarn";
 type TerminalId = "terminal" | "iterm" | "custom";
 
@@ -27,6 +27,7 @@ const AGENT_COMMANDS: Record<ToolId, string> = {
   claude: "claude",
   gemini: "gemini",
   qwen: "qwen",
+  yolo: "yolo",
 };
 
 const YOLO_AGENT_ARGS: Record<ToolId, string> = {
