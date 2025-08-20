@@ -99,7 +99,7 @@ function escapeShellArg(arg: string): string {
 
 function escapeAppleScriptString(str: string): string {
   // Escape strings for AppleScript by escaping double quotes and backslashes
-  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 async function launchAgentInTerminal(
@@ -156,7 +156,7 @@ end tell`;
           });
           return;
         }
-        
+
         // Validate custom terminal name - only allow alphanumeric, spaces, hyphens, and underscores
         if (!/^[a-zA-Z0-9\s\-_]+$/.test(customTerminal)) {
           await showToast({
